@@ -65,14 +65,12 @@ export default async function handler(req, res) {
     const lsqPayload = [{ Phone: phoneClean }];
     const data = lsqPayload[0];
 
-    // Number fields
-    if (eshipzData.tracking_number) data.tracking_number = Number(eshipzData.tracking_number) || eshipzData.tracking_number;
-    if (cleanOrderId) data.order_id = cleanOrderId;
-
-    // Text/Select fields — only add if non-empty
+    // Text fields only — skip Number/Date/Select fields for now to debug
     if (eshipzData.carrier) data.carrier = eshipzData.carrier;
     if (eshipzData.tracking_link) data.tracking_link = eshipzData.tracking_link;
-    if (eshipzData.tracking_status) data.tracking_status = eshipzData.tracking_status;
+    if (cleanOrderId) data.order_id = String(cleanOrderId);
+    if (eshipzData.tracking_number) data.tracking_number = String(eshipzData.tracking_number);
+    if (eshipzData.tracking_status) data.tracking_status = String(eshipzData.tracking_status);
     if (eshipzData.delivery_date) data.delivery_date = eshipzData.delivery_date;
 
     const lsqRes = await fetch(LSQ_WEBHOOK_URL, {
