@@ -61,16 +61,19 @@ export default async function handler(req, res) {
     // Clean order_id: remove # prefix for LSQ Number field
     const cleanOrderId = parseInt(orderId.replace(/^#/, ""), 10) || orderId.replace(/^#/, "");
 
-    // Send to LSQ
-    const lsqPayload = [{
-      Phone: phoneClean,
-      tracking_number: eshipzData.tracking_number || "",
-      carrier: eshipzData.carrier || "",
-      tracking_link: eshipzData.tracking_link || "",
-      tracking_status: eshipzData.tracking_status || "",
-      delivery_date: eshipzData.delivery_date || "",
-      order_id: cleanOrderId
-    }];
+    // Send to LSQ — only include fields that have values, respect LSQ data types
+    const lsqPayload = [{ Phone: phoneClean }];
+    const data = lsqPayload[0];
+
+    // Number fields
+    if (eshipzData.tracking_number) data.tracking_number = Number(eshipzData.tracking_number) || eshipzData.tracking_number;
+    if (cleanOrderId) data.order_id = cleanOrderId;
+
+    // Text/Select fields — only add if non-empty
+    if (eshipzData.carrier) data.carrier = eshipzData.carrier;
+    if (eshipzData.tracking_link) data.tracking_link = eshipzData.tracking_link;
+    if (eshipzData.tracking_status) data.tracking_status = eshipzData.tracking_status;
+    if (eshipzData.delivery_date) data.delivery_date = eshipzData.delivery_date;
 
     const lsqRes = await fetch(LSQ_WEBHOOK_URL, {
       method: "POST",
