@@ -1,6 +1,8 @@
 {
   "version": 2,
   "routes": [
-    { "src": "/api/webhook", "methods": ["POST", "OPTIONS"], "dest": "/api/webhook.js" }
+    { "src": "/api/webhook", "methods": ["POST", "OPTIONS"], "dest": "/api/webhook.js" },
+    { "src": "/api/auth", "methods": ["GET"], "dest": "/api/auth.js" },
+    { "src": "/api/auth-callback", "methods": ["GET"], "dest": "/api/auth-callback.js" }
   ]
 }
