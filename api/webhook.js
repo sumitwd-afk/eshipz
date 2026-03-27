@@ -70,12 +70,13 @@ export default async function handler(req, res) {
       body: JSON.stringify(lsqPayload)
     });
 
+    const lsqBody = await lsqRes.text();
+
     if (!lsqRes.ok) {
-      const lsqErr = await lsqRes.text();
-      return res.status(502).json({ error: "LSQ webhook failed", lsqStatus: lsqRes.status, detail: lsqErr.substring(0, 500) });
+      return res.status(502).json({ error: "LSQ webhook failed", lsqStatus: lsqRes.status, detail: lsqBody.substring(0, 500) });
     }
 
-    return res.status(200).json({ success: true, orderId, lsqStatus: lsqRes.status });
+    return res.status(200).json({ success: true, orderId, lsqStatus: lsqRes.status, lsqResponse: lsqBody.substring(0, 500), phoneSent: phone });
 
   } catch (err) {
     return res.status(500).json({ error: "Internal server error", message: err.message });
