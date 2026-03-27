@@ -82,7 +82,7 @@ export default async function handler(req, res) {
       { Attribute: "mx_Courier_Name", Value: eshipzData.carrier || "" },
       { Attribute: "mx_Tracking_URL", Value: eshipzData.tracking_link || "" },
       { Attribute: "mx_Shipment_Status", Value: eshipzData.tracking_status || "" },
-      { Attribute: "mx_Order_Number", Value: cleanOrderId }
+      { Attribute: "mx_Convinced_Rate", Value: cleanOrderId }
     ];
 
     if (eshipzData.delivery_date) {
