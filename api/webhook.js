@@ -61,22 +61,14 @@ export default async function handler(req, res) {
     // Clean order_id: remove # prefix for LSQ Number field
     const cleanOrderId = parseInt(orderId.replace(/^#/, ""), 10) || orderId.replace(/^#/, "");
 
-    // Send to LSQ — MINIMAL TEST: only Phone field
-    const lsqPayload = [{ Phone: phoneClean }];
-
-    // TEMPORARILY DISABLED — uncomment after Phone matching works
-    // const data = lsqPayload[0];
-    // if (eshipzData.carrier) data.carrier = eshipzData.carrier;
-    // if (eshipzData.tracking_link) data.tracking_link = eshipzData.tracking_link;
-    // if (cleanOrderId) data.order_id = String(cleanOrderId);
-    // if (eshipzData.tracking_number) data.tracking_number = String(eshipzData.tracking_number);
-    // if (eshipzData.tracking_status) data.tracking_status = String(eshipzData.tracking_status);
-    // if (eshipzData.delivery_date) data.delivery_date = eshipzData.delivery_date;
-
+    // Send to LSQ — DEBUG: try both array and single object format
+    const lsqPayloadObj = { Phone: phoneClean };
+    
+    // Try single object (not array) — some LSQ webhooks expect this
     const lsqRes = await fetch(LSQ_WEBHOOK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(lsqPayload)
+      body: JSON.stringify(lsqPayloadObj)
     });
 
     const lsqBody = await lsqRes.text();
@@ -85,7 +77,10 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: "LSQ webhook failed", lsqStatus: lsqRes.status, detail: lsqBody.substring(0, 500) });
     }
 
-    return res.status(200).json({ success: true, orderId, lsqStatus: lsqRes.status, lsqResponse: lsqBody.substring(0, 500), phoneSent: phoneClean, payloadSent: JSON.stringify(lsqPayload) });
+    // Show masked LSQ URL for verification
+    const maskedUrl = LSQ_WEBHOOK_URL.substring(0, 60) + "...";
+
+    return res.status(200).json({ success: true, orderId, lsqStatus: lsqRes.status, lsqResponse: lsqBody.substring(0, 500), phoneSent: phoneClean, payloadSent: JSON.stringify(lsqPayloadObj), lsqUrlPrefix: maskedUrl });
 
   } catch (err) {
     return res.status(500).json({ error: "Internal server error", message: err.message });
