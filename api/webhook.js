@@ -57,20 +57,22 @@ export default async function handler(req, res) {
     const digits = phone.replace(/^\+?91/, "");
     const cleanOrderId = orderId.replace(/^#/, "");
 
-    // --- STEP 2: Search lead in LSQ by phone ---
-    const searchUrl = `${LSQ_HOST}/v2/LeadManagement.svc/Leads.GetByPhoneNumber?accessKey=${LSQ_ACCESS_KEY}&secretKey=${LSQ_SECRET_KEY}&phone=${digits}`;
-
-    const searchRes = await fetch(searchUrl);
-    const searchBody = await searchRes.text();
+    // --- STEP 2: Search lead in LSQ by phone (try multiple formats) ---
+    const phoneFormats = [digits, `+91-${digits}`, `+91${digits}`, `91${digits}`];
     let leadId = null;
 
-    if (searchRes.ok) {
-      try {
-        const leads = JSON.parse(searchBody);
-        if (Array.isArray(leads) && leads.length > 0) {
-          leadId = leads[0].ProspectID;
-        }
-      } catch (e) {}
+    for (const fmt of phoneFormats) {
+      const searchUrl = `${LSQ_HOST}/v2/LeadManagement.svc/Leads.GetByPhoneNumber?accessKey=${LSQ_ACCESS_KEY}&secretKey=${LSQ_SECRET_KEY}&phone=${encodeURIComponent(fmt)}`;
+      const searchRes = await fetch(searchUrl);
+      if (searchRes.ok) {
+        try {
+          const leads = JSON.parse(await searchRes.text());
+          if (Array.isArray(leads) && leads.length > 0) {
+            leadId = leads[0].ProspectID;
+            break;
+          }
+        } catch (e) {}
+      }
     }
 
     // --- STEP 3: Update or Create lead ---
@@ -87,22 +89,45 @@ export default async function handler(req, res) {
       lsqFields.push({ Attribute: "mx_Actual_Delivery_Date", Value: eshipzData.delivery_date });
     }
 
-    let lsqUrl, lsqMethod;
+    let lsqUrl;
     if (leadId) {
-      // Update existing lead
       lsqUrl = `${LSQ_HOST}/v2/LeadManagement.svc/Lead.Update?accessKey=${LSQ_ACCESS_KEY}&secretKey=${LSQ_SECRET_KEY}&leadId=${leadId}`;
     } else {
-      // Create new lead (Capture auto-matches by phone)
       lsqUrl = `${LSQ_HOST}/v2/LeadManagement.svc/Lead.Capture?accessKey=${LSQ_ACCESS_KEY}&secretKey=${LSQ_SECRET_KEY}`;
     }
 
-    const lsqRes = await fetch(lsqUrl, {
+    let lsqRes = await fetch(lsqUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(lsqFields)
     });
 
-    const lsqBody = await lsqRes.text();
+    let lsqBody = await lsqRes.text();
+
+    // If Capture fails with duplicate, extract leadId and retry as Update
+    if (!lsqRes.ok && !leadId && lsqBody.includes("DuplicateEntryException")) {
+      try {
+        // Search by email/phone using QuickSearch to get leadId
+        const qsUrl = `${LSQ_HOST}/v2/LeadManagement.svc/Leads.GetByQuickSearch?accessKey=${LSQ_ACCESS_KEY}&secretKey=${LSQ_SECRET_KEY}&key=${digits}`;
+        const qsRes = await fetch(qsUrl);
+        if (qsRes.ok) {
+          const qsData = JSON.parse(await qsRes.text());
+          if (Array.isArray(qsData) && qsData.length > 0) {
+            leadId = qsData[0].ProspectID;
+          }
+        }
+      } catch (e) {}
+
+      if (leadId) {
+        const updateUrl = `${LSQ_HOST}/v2/LeadManagement.svc/Lead.Update?accessKey=${LSQ_ACCESS_KEY}&secretKey=${LSQ_SECRET_KEY}&leadId=${leadId}`;
+        lsqRes = await fetch(updateUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(lsqFields)
+        });
+        lsqBody = await lsqRes.text();
+      }
+    }
 
     if (!lsqRes.ok) {
       return res.status(502).json({ 
