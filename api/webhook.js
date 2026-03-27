@@ -53,34 +53,30 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: "No phone found for order", orderId });
     }
 
-    // Normalize phone: remove spaces, format as +91-XXXXXXXXXX for LSQ matching
+    // Normalize phone: try multiple formats to find which LSQ accepts
     phone = phone.replace(/[\s\-()]/g, "");
     const digits = phone.replace(/^\+?91/, "");
-    const phoneClean = `+91-${digits}`;
-
-    // Clean order_id: remove # prefix for LSQ Number field
-    const cleanOrderId = parseInt(orderId.replace(/^#/, ""), 10) || orderId.replace(/^#/, "");
-
-    // Send to LSQ — DEBUG: try both array and single object format
-    const lsqPayloadObj = { Phone: phoneClean };
     
-    // Try single object (not array) — some LSQ webhooks expect this
-    const lsqRes = await fetch(LSQ_WEBHOOK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(lsqPayloadObj)
-    });
+    // Try 3 formats — send all, check which one LSQ processes
+    const formats = [
+      digits,                    // 7027779449
+      `91${digits}`,            // 917027779449  
+      `+91${digits}`,           // +917027779449
+    ];
 
-    const lsqBody = await lsqRes.text();
-
-    if (!lsqRes.ok) {
-      return res.status(502).json({ error: "LSQ webhook failed", lsqStatus: lsqRes.status, detail: lsqBody.substring(0, 500) });
+    const results = [];
+    for (const fmt of formats) {
+      const lsqPayloadObj = { Phone: fmt };
+      const lsqRes = await fetch(LSQ_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(lsqPayloadObj)
+      });
+      const lsqBody = await lsqRes.text();
+      results.push({ phone: fmt, status: lsqRes.status, response: lsqBody.substring(0, 200) });
     }
 
-    // Show masked LSQ URL for verification
-    const maskedUrl = LSQ_WEBHOOK_URL.substring(0, 60) + "...";
-
-    return res.status(200).json({ success: true, orderId, lsqStatus: lsqRes.status, lsqResponse: lsqBody.substring(0, 500), phoneSent: phoneClean, payloadSent: JSON.stringify(lsqPayloadObj), lsqUrlPrefix: maskedUrl });
+    return res.status(200).json({ success: true, orderId, tests: results });
 
   } catch (err) {
     return res.status(500).json({ error: "Internal server error", message: err.message });
