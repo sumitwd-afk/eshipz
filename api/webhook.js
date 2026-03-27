@@ -61,17 +61,17 @@ export default async function handler(req, res) {
     // Clean order_id: remove # prefix for LSQ Number field
     const cleanOrderId = parseInt(orderId.replace(/^#/, ""), 10) || orderId.replace(/^#/, "");
 
-    // Send to LSQ — only include fields that have values, respect LSQ data types
+    // Send to LSQ — MINIMAL TEST: only Phone field
     const lsqPayload = [{ Phone: phoneClean }];
-    const data = lsqPayload[0];
 
-    // Text fields only — skip Number/Date/Select fields for now to debug
-    if (eshipzData.carrier) data.carrier = eshipzData.carrier;
-    if (eshipzData.tracking_link) data.tracking_link = eshipzData.tracking_link;
-    if (cleanOrderId) data.order_id = String(cleanOrderId);
-    if (eshipzData.tracking_number) data.tracking_number = String(eshipzData.tracking_number);
-    if (eshipzData.tracking_status) data.tracking_status = String(eshipzData.tracking_status);
-    if (eshipzData.delivery_date) data.delivery_date = eshipzData.delivery_date;
+    // TEMPORARILY DISABLED — uncomment after Phone matching works
+    // const data = lsqPayload[0];
+    // if (eshipzData.carrier) data.carrier = eshipzData.carrier;
+    // if (eshipzData.tracking_link) data.tracking_link = eshipzData.tracking_link;
+    // if (cleanOrderId) data.order_id = String(cleanOrderId);
+    // if (eshipzData.tracking_number) data.tracking_number = String(eshipzData.tracking_number);
+    // if (eshipzData.tracking_status) data.tracking_status = String(eshipzData.tracking_status);
+    // if (eshipzData.delivery_date) data.delivery_date = eshipzData.delivery_date;
 
     const lsqRes = await fetch(LSQ_WEBHOOK_URL, {
       method: "POST",
