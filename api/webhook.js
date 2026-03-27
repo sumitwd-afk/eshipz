@@ -53,30 +53,41 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: "No phone found for order", orderId });
     }
 
-    // Normalize phone: try multiple formats to find which LSQ accepts
+    // Normalize phone
     phone = phone.replace(/[\s\-()]/g, "");
     const digits = phone.replace(/^\+?91/, "");
-    
-    // Try 3 formats — send all, check which one LSQ processes
-    const formats = [
-      digits,                    // 7027779449
-      `91${digits}`,            // 917027779449  
-      `+91${digits}`,           // +917027779449
-    ];
+    const phoneClean = digits; // 10-digit format
 
-    const results = [];
-    for (const fmt of formats) {
-      const lsqPayloadObj = { Phone: fmt };
-      const lsqRes = await fetch(LSQ_WEBHOOK_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(lsqPayloadObj)
-      });
-      const lsqBody = await lsqRes.text();
-      results.push({ phone: fmt, status: lsqRes.status, response: lsqBody.substring(0, 200) });
+    // Clean order_id
+    const cleanOrderId = parseInt(orderId.replace(/^#/, ""), 10) || orderId.replace(/^#/, "");
+
+    // Send to LSQ with all tracking data
+    const lsqPayload = {
+      Phone: phoneClean,
+      carrier: eshipzData.carrier || undefined,
+      tracking_link: eshipzData.tracking_link || undefined,
+      order_id: String(cleanOrderId),
+      tracking_number: eshipzData.tracking_number || undefined,
+      tracking_status: eshipzData.tracking_status || undefined,
+      delivery_date: eshipzData.delivery_date || undefined
+    };
+
+    // Remove undefined keys
+    Object.keys(lsqPayload).forEach(k => lsqPayload[k] === undefined && delete lsqPayload[k]);
+
+    const lsqRes = await fetch(LSQ_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(lsqPayload)
+    });
+
+    const lsqBody = await lsqRes.text();
+
+    if (!lsqRes.ok) {
+      return res.status(502).json({ error: "LSQ webhook failed", lsqStatus: lsqRes.status, detail: lsqBody.substring(0, 500) });
     }
 
-    return res.status(200).json({ success: true, orderId, tests: results });
+    return res.status(200).json({ success: true, orderId, lsqStatus: lsqRes.status, lsqResponse: lsqBody.substring(0, 500), phoneSent: phoneClean, payloadSent: JSON.stringify(lsqPayload) });
 
   } catch (err) {
     return res.status(500).json({ error: "Internal server error", message: err.message });
