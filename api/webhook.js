@@ -47,11 +47,20 @@ export default async function handler(req, res) {
     }
 
     // Extract phone
-    const phone = order.phone || order.customer?.phone || order.customer?.default_address?.phone;
+    let phone = order.phone || order.customer?.phone || order.customer?.default_address?.phone;
 
     if (!phone) {
       return res.status(404).json({ error: "No phone found for order", orderId });
     }
+
+    // Normalize phone: remove spaces, ensure +91 prefix
+    phone = phone.replace(/[\s\-()]/g, "");
+    if (!phone.startsWith("+")) {
+      phone = phone.startsWith("91") && phone.length > 10 ? `+${phone}` : `+91${phone}`;
+    }
+
+    // Clean order_id: remove # prefix for LSQ Number field
+    const cleanOrderId = orderId.replace(/^#/, "");
 
     // Send to LSQ
     const lsqPayload = {
@@ -61,7 +70,7 @@ export default async function handler(req, res) {
       tracking_link: eshipzData.tracking_link || "",
       tracking_status: eshipzData.tracking_status || "",
       delivery_date: eshipzData.delivery_date || "",
-      order_id: orderId
+      order_id: cleanOrderId
     };
 
     const lsqRes = await fetch(LSQ_WEBHOOK_URL, {
