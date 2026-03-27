@@ -53,18 +53,17 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: "No phone found for order", orderId });
     }
 
-    // Normalize phone: remove spaces, ensure +91 prefix
+    // Normalize phone: remove spaces, format as +91-XXXXXXXXXX for LSQ matching
     phone = phone.replace(/[\s\-()]/g, "");
-    if (!phone.startsWith("+")) {
-      phone = phone.startsWith("91") && phone.length > 10 ? `+${phone}` : `+91${phone}`;
-    }
+    const digits = phone.replace(/^\+?91/, "");
+    const phoneClean = `+91-${digits}`;
 
     // Clean order_id: remove # prefix for LSQ Number field
     const cleanOrderId = parseInt(orderId.replace(/^#/, ""), 10) || orderId.replace(/^#/, "");
 
     // Send to LSQ
     const lsqPayload = [{
-      Phone: phone,
+      Phone: phoneClean,
       tracking_number: eshipzData.tracking_number || "",
       carrier: eshipzData.carrier || "",
       tracking_link: eshipzData.tracking_link || "",
@@ -85,7 +84,7 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: "LSQ webhook failed", lsqStatus: lsqRes.status, detail: lsqBody.substring(0, 500) });
     }
 
-    return res.status(200).json({ success: true, orderId, lsqStatus: lsqRes.status, lsqResponse: lsqBody.substring(0, 500), phoneSent: phone });
+    return res.status(200).json({ success: true, orderId, lsqStatus: lsqRes.status, lsqResponse: lsqBody.substring(0, 500), phoneSent: phoneClean, payloadSent: JSON.stringify(lsqPayload) });
 
   } catch (err) {
     return res.status(500).json({ error: "Internal server error", message: err.message });
